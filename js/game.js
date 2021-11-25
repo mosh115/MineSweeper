@@ -14,7 +14,10 @@ var HINT = '💡'
 
 var gLevel = {
     SIZE: 4,
-    MINES: 2
+    MINES: 2,
+    LIVES: 1,
+    HINTS: 1,
+    SAFE: 1
 }
 
 var gGame = {
@@ -25,7 +28,9 @@ var gGame = {
     idTimer: null,
     lives: 0,
     hints: 0,
-    isHint: false
+    isHint: false,
+    mines: 2,
+    safe: 1
 
 }
 
@@ -35,14 +40,16 @@ function initGame() {
     renderBoard(gBoard);
     addLivesAndHints()
 
-    //Model
-    gGame.markedCount = gLevel.MINES;
+    //Model 
+    gGame.markedCount = gGame.mines;
     //Dom
     var elMarkedCount = document.querySelector('.markedCount')
-    elMarkedCount.innerHTML = gLevel.MINES;
+    elMarkedCount.innerHTML = gGame.mines;
 
-    //Model
-    // gGame.
+
+    var elBtnSafe = document.querySelector('#safe')
+    elBtnSafe.innerText = `Safe click (${gGame.safe})`;
+
 
     //dom
     var elTimer = document.querySelector('.timer')
@@ -130,21 +137,21 @@ function cellClicked(elCell, i, j) {
         setMinesNegsCount()
         setTimer();
     }
-    var cell = gBoard[i][j];
-
-    if (cell.isMarked || cell.isShown) return;
-
     if (gGame.isHint) {
         var negs = revealInHint({ i, j });
         setTimeout(unrevealInHint, 1000, negs)
         return;
     }
 
+    var cell = gBoard[i][j];
+
+    if (cell.isMarked || cell.isShown) return;
+
     if (cell.isMine) {
         //Model
         cell.isShown = true;
         gGame.shownCount++
-        gLevel.MINES--
+        gGame.mines--
         gGame.markedCount--
         gGame.lives--
         //Dom
@@ -178,7 +185,7 @@ function cellClicked(elCell, i, j) {
         elCell.innerHTML = cell.minesAroundCount;
         elCell.classList.add('shown');
     }
-    checkGameOver();
+    checkvictorious();
 }
 
 function addMines(posI, posJ) {
@@ -214,7 +221,7 @@ function cellMarked(elCell, ev, i, j) {
         //Dom
         elCell.innerHTML = FLAG;
         elMarkedCount.innerHTML = gGame.markedCount;
-        checkGameOver();
+        checkvictorious();
     } else {
 
         //Model 
@@ -227,14 +234,15 @@ function cellMarked(elCell, ev, i, j) {
     }
 }
 
-function checkGameOver() {
+function checkvictorious() {
     var size = gLevel.SIZE * gLevel.SIZE;
-    if (gGame.shownCount === size - gLevel.MINES &&
+    if (gGame.shownCount === size - gGame.mines &&
         gGame.markedCount === 0) {
+        //Model
         gGame.isOn = false;
         clearInterval(gGame.idTimer)
-        gGame.lives = 0;
-        gGame.hints = 0;
+        saveBestScore();
+
         var elbuttonFace = document.querySelector('.face')
         elbuttonFace.innerHTML = WIN;
     }
@@ -243,11 +251,15 @@ function checkGameOver() {
 function restartGame() {
     var elbtn = document.querySelector('.face')
     elbtn.innerText = SMILE
+    var elLives = document.querySelector('#lives')
+    elLives.innerHTML = '';
     clearInterval(gGame.idTimer)
     gGame.shownCount = 0;
     gGame.markedCount = 0;
-    gGame.lives = 0;
-    gGame.hints = 0;
+    gGame.lives = gLevel.LIVES;
+    gGame.hints = gLevel.HINTS;
+    gGame.mines = gLevel.MINES;
+    gGame.safe = gLevel.SAFE;
     initGame();
 
 }
@@ -258,7 +270,7 @@ function expandShown(posI, posj) {
         if (i < 0 || i >= gBoard.length) continue;
         for (var j = posj - 1; j <= posj + 1; j++) {
             if (j < 0 || j >= gBoard[i].length) continue;
-            if (gBoard[i][j].isShown) continue;
+            if (gBoard[i][j].isShown || gBoard[i][j].isMarked) continue;
             if (i === posI && j === posj || gBoard[i][j].minesAroundCount) {
                 gBoard[i][j].isShown = true
                 gGame.shownCount++
@@ -279,19 +291,17 @@ function expandShown(posI, posj) {
 function setTimer() {
     var elTimer = document.querySelector('.timer')
     gGame.idTimer = setInterval(countTimer, 1000);
-    var totalSeconds = 0;
+    gGame.secsPassed = 0;
     function countTimer() {
-        ++totalSeconds;
-        var hour = Math.floor(totalSeconds / 3600);
-        var minute = Math.floor((totalSeconds - hour * 3600) / 60);
-        var seconds = totalSeconds - (hour * 3600 + minute * 60);
+        ++gGame.secsPassed;
+        var hour = Math.floor(gGame.secsPassed / 3600);
+        var minute = Math.floor((gGame.secsPassed - hour * 3600) / 60);
+        var seconds = gGame.secsPassed - (hour * 3600 + minute * 60);
         if (hour < 10) hour = "0" + hour;
         if (minute < 10) minute = "0" + minute;
         if (seconds < 10) seconds = "0" + seconds;
         elTimer.innerText = hour + ":" + minute + ":" + seconds;
-        // hour + ":" + minute + ":" + seconds;
     }
-
 }
 
 function changeDifficult(elBtn) {
@@ -300,13 +310,22 @@ function changeDifficult(elBtn) {
 
     switch (gLevel.SIZE) {
         case 4:
-            gLevel.MINES = 2
+            gLevel.MINES = 2;
+            gLevel.LIVES = 1;
+            gLevel.HINTS = 1;
+            gLevel.SAFE = 1;
             break;
         case 8:
-            gLevel.MINES = 12
+            gLevel.MINES = 12;
+            gLevel.LIVES = 2;
+            gLevel.HINTS = 2;
+            gLevel.SAFE = 2;
             break;
         case 12:
-            gLevel.MINES = 30
+            gLevel.MINES = 30;
+            gLevel.LIVES = 3;
+            gLevel.HINTS = 3;
+            gLevel.SAFE = 3
             break;
         default:
             return;
@@ -332,11 +351,13 @@ function revealMines() {
 }
 
 function addLivesAndHints() {
+    gGame.lives = 0;
+    gGame.hints = 0
     var elLives = document.querySelector('#lives')
     elLives.innerHTML = '';
     var lives = ''
     var hints = ''
-    for (var i = 0; i < 3; i++) {
+    for (var i = 0; i < gLevel.LIVES; i++) {
         lives += LIVE;
         hints += HINT
         //Model
@@ -375,10 +396,11 @@ function removeLiveOrHint(element) {
 
 function hintClicked(elHints) {
     if (!gGame.isOn || !gGame.shownCount) return
-    // console.log('btn', elHints)
-    // var elHints = document.querySelector('#hints')
-    elHints.classList.toggle('hints');
+
+    //Model
     gGame.isHint = !gGame.isHint;
+    //Dom
+    elHints.classList.toggle('hints');
 }
 
 function revealInHint(pos) {
@@ -421,5 +443,48 @@ function unrevealInHint(negs) {
     }
     gGame.isHint = false
 
+}
+
+function safeClick(elBtnSafe) {
+
+    if (!gGame.isOn || !gGame.shownCount || !gGame.safe) return
+
+    var temp = 0
+    while (temp < 1) {
+
+        var i = getRandomInt(0, gLevel.SIZE)
+        var j = getRandomInt(0, gLevel.SIZE)
+        if (gBoard[i][j].isShown || gBoard[i][j].isMine ||
+            gBoard[i][j].isMarked || !gBoard[i][j].minesAroundCount) continue
+
+        temp++
+    }
+
+    //Model
+    gGame.safe--
+    //Dom
+    var elCurrCell = document.querySelector(`.cell${i}-${j}`);
+    elCurrCell.innerHTML = gBoard[i][j].minesAroundCount
+    elCurrCell.classList.add('shown');
+    setTimeout(() => {
+        elCurrCell.innerHTML = ''
+        elCurrCell.classList.remove('shown');
+    }, 1000)
+    elBtnSafe.innerText = `Safe click (${gGame.safe})`;
+
+}
+
+function saveBestScore() {
+
+
+    localStorage.setItem("lastname", "Smith");
+
+
+}
+
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
 }
 
